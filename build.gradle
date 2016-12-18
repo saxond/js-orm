@@ -1,0 +1,34 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile "com.j256.ormlite:ormlite-core:5.0"
+    compile "com.j256.ormlite:ormlite-jdbc:5.0"
+    compile "javax.persistence:persistence-api:1.0.2"
+    compile "org.ow2.asm:asm:5.1"
+    compile "org.ow2.asm:asm-util:5.1"
+    compile "org.ow2.asm:asm-commons:5.1"
+    
+    compile "com.fasterxml.jackson.core:jackson-databind:${project['jackson.version']}"
+    
+    compile "com.google.guava:guava:${project['guava.version']}"
+    
+    compile "mysql:mysql-connector-java:6.0.5"
+    
+    testCompile "org.mockito:mockito-all:1.10.19"
+    testCompile "junit:junit:${project['junit.version']}"
+}
+
+jar {  
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    } {
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+}
