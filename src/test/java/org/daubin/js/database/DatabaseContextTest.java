@@ -2,8 +2,9 @@ package org.daubin.js.database;
 
 import java.sql.SQLException;
 import java.util.List;
-import java.util.stream.Collectors;
 
+import javax.persistence.Column;
+import javax.persistence.Table;
 import javax.script.Bindings;
 import javax.script.Invocable;
 import javax.script.ScriptContext;
@@ -11,14 +12,19 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
-import org.daubin.js.database.Initializer;
-import org.daubin.js.database.JsDao;
 import org.junit.Test;
 
+import com.j256.ormlite.dao.Dao;
+import com.j256.ormlite.dao.DaoManager;
 import com.j256.ormlite.jdbc.JdbcConnectionSource;
 import com.j256.ormlite.support.ConnectionSource;
+import com.j256.ormlite.table.TableUtils;
 
 public class DatabaseContextTest {
+    private static final String DB_DRIVER = "org.h2.Driver";
+    private static final String DB_CONNECTION = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1";
+    private static final String DB_USER = "";
+    private static final String DB_PASSWORD = "";
     
     @Test
     public void help() throws ScriptException, NoSuchMethodException, SQLException {
@@ -31,10 +37,16 @@ public class DatabaseContextTest {
         
         System.err.println(((Invocable)engine).invokeFunction("help"));
     }
+    
+    @Test
+    public void test() throws NoSuchMethodException, SecurityException, SQLException {
+    	DatabaseContext context = new DatabaseContext(createConnection());
+    	
+    }
 
 
     @Test
-    public void test() throws ScriptException, NoSuchMethodException, SQLException {
+    public void testScript() throws ScriptException, NoSuchMethodException, SQLException {
         String script = Initializer.class.getName() + ".init();" + 
                 "function test() { var t = new DBContext(conn).define('accounts', " + 
                 "{id: {type: Type.Integer, unique: true},name: Type.String });" +
@@ -43,20 +55,44 @@ public class DatabaseContextTest {
         ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
         
         Bindings bindings = engine.createBindings();
-        bindings.put("conn", createConnection());
+        bindings.put("conn", createDb(createConnection()));
         engine.setBindings(bindings, ScriptContext.ENGINE_SCOPE);
         engine.eval(script);
         
         JsDao value = (JsDao) ((Invocable)engine).invokeFunction("test");
         
-        List all = value.all();
+        List<?> all = value.all();
         System.err.println(all);
     }
 
-    private ConnectionSource createConnection() throws SQLException {
-      String serverName = "localhost";
-      String mydatabase = "aggregator_test";
-      return new JdbcConnectionSource("jdbc:mysql://" + serverName + "/" + mydatabase, "root", null);
+    private static ConnectionSource createConnection() throws SQLException {
+      return new JdbcConnectionSource(DB_CONNECTION, DB_USER, DB_PASSWORD);
+    }
+    
+    private static ConnectionSource createDb(ConnectionSource conn) throws SQLException {
+    	TableUtils.createTable(conn, Account.class);
+    	
+    	Dao<Account, ?> dao = DaoManager.createDao(conn, Account.class);
+    	dao.create(new Account(5, "test"));
+    	
+    	return conn;
+    }
+    
+    @Table(name = "accounts")
+    private static class Account {
+    	
+		@Column(unique=true)
+    	int id;
+    	@Column
+    	String name;
+    	
+    	public Account() {
+    	}
+    	
+    	public Account(int id, String name) {
+			this.id = id;
+			this.name = name;
+		}
 
     }
 }

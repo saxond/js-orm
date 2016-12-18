@@ -5,14 +5,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
-import com.j256.ormlite.jdbc.JdbcConnectionSource;
-
 import jdk.internal.dynalink.beans.StaticClass;
 import jdk.nashorn.internal.objects.NativeJava;
 import jdk.nashorn.internal.runtime.Context;
 import jdk.nashorn.internal.runtime.ScriptFunction;
 import jdk.nashorn.internal.runtime.Source;
+
+import com.google.common.collect.ImmutableMap;
+import com.j256.ormlite.jdbc.JdbcConnectionSource;
 
 public class Initializer {
 
@@ -59,11 +59,6 @@ public class Initializer {
     
     private static void print(String message) {
         Context.getContext().getOut().println(message);
-    }
-
-    private static String getHelpText() {
-        String help = "";
-        return help;
     }
 
     static  void defineScript(String name, String script) throws Throwable {

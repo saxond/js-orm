@@ -21,7 +21,8 @@ class Columns {
         return columns;
     }
 
-    static ColumnAndType createColumn(Entry<String, Object> entry) {
+    @SuppressWarnings("unchecked")
+	static ColumnAndType createColumn(Entry<String, Object> entry) {
         final Map<String,Object> map;
         if (entry.getValue() instanceof ColumnType) {
             map = ImmutableMap.of("type", entry.getValue());

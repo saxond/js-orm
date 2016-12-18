@@ -17,8 +17,8 @@ dependencies {
     
     compile "com.google.guava:guava:${project['guava.version']}"
     
-    compile "mysql:mysql-connector-java:6.0.5"
-    
+//    testCompile "mysql:mysql-connector-java:6.0.5"
+    testCompile "com.h2database:h2:1.4.193"  
     testCompile "org.mockito:mockito-all:1.10.19"
     testCompile "junit:junit:${project['junit.version']}"
 }

@@ -19,7 +19,8 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 class ClassGenerator {
-    private static final org.objectweb.asm.commons.Method TOSTRING_METHOD = new 
+    private static final int JAVA_VERSION = 52;
+	private static final org.objectweb.asm.commons.Method TOSTRING_METHOD = new 
             org.objectweb.asm.commons.Method("toString", "()Ljava/lang/String;");
     private static final Type STRINGBUILDER_TYPE = Type.getType(StringBuilder.class);
 
@@ -49,29 +50,33 @@ class ClassGenerator {
     private static byte[] generateClass(String tableName, List<ColumnAndType> columns) {
     
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-    
-        cw.visit(52, Opcodes.ACC_PUBLIC, tableName, null, 
+
+        final String className = "org/daubin/generated/" + tableName;
+        cw.visit(JAVA_VERSION, Opcodes.ACC_PUBLIC, className, null, 
                 Type.getInternalName(Object.class), new String[0]);
         
-        cw.visitSource(tableName + ".java", null);
+        cw.visitSource(className, null);
         
+        // Add the persistence Table annotation
         AnnotationVisitor tableAnnotation = cw.visitAnnotation(Type.getDescriptor(Table.class), true);
-        tableAnnotation.visit("name", tableName);
+		tableAnnotation.visit("name", tableName);
         tableAnnotation.visitEnd();
         
+        // generate fields for all columns
         for (ColumnAndType column : columns) {
             generateField(cw, column);
         }
         
+        // generate the default constructor
         generateConstructor(cw);
         
-        generateToString(cw, tableName, columns);
+        generateToString(cw, tableName, className, columns);
     
         cw.visitEnd();
         return cw.toByteArray();
     }
 
-    private static void generateToString(ClassWriter cw, String tableName, List<ColumnAndType> columns) {
+    private static void generateToString(ClassWriter cw, String tableName, String className, List<ColumnAndType> columns) {
         GeneratorAdapter mv =
                 new GeneratorAdapter(Opcodes.ACC_PUBLIC, TOSTRING_METHOD,
                 cw.visitMethod(Opcodes.ACC_PUBLIC, TOSTRING_METHOD.getName() , TOSTRING_METHOD.getDescriptor(), null, null));
@@ -102,7 +107,7 @@ class ClassGenerator {
             
             mv.loadLocal(local);
             mv.loadThis();
-            mv.visitFieldInsn(Opcodes.GETFIELD, tableName, col.name(), Type.getDescriptor(col.type().clazz));
+            mv.visitFieldInsn(Opcodes.GETFIELD, className, col.name(), Type.getDescriptor(col.type().clazz));
             mv.invokeVirtual(STRINGBUILDER_TYPE, getAppendMethod(col.type().clazz));
         }
         
@@ -170,20 +175,23 @@ class ClassGenerator {
     
         return new Function<byte[], Class<?>>() {
     
-            @Override
-            public Class<?> apply(byte[] bytes) {
-                ClassReader reader = new ClassReader(bytes);
-                method.setAccessible(true);
-                try {
-                  Object[] args = new Object[] { reader.getClassName(), bytes, new Integer(0), new Integer(bytes.length)};
-                  return (Class<?>) method.invoke(loader, args);
-                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-                    e.printStackTrace();
-                    return null;
-                } finally {
-                  method.setAccessible(false);
-                }
-            }
+			@Override
+			public Class<?> apply(byte[] bytes) {
+				ClassReader reader = new ClassReader(bytes);
+				method.setAccessible(true);
+				try {
+					String className = reader.getClassName().replace('/', '.');
+					Object[] args = new Object[] { className, bytes,
+							new Integer(0), new Integer(bytes.length) };
+					return (Class<?>) method.invoke(loader, args);
+				} catch (IllegalAccessException | IllegalArgumentException
+						| InvocationTargetException e) {
+					e.printStackTrace();
+					return null;
+				} finally {
+					method.setAccessible(false);
+				}
+			}
             
         };
     }
