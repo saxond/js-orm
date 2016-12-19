@@ -1,31 +1,34 @@
 package org.daubin.js.database;
 
-import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import javax.persistence.Column;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 class Columns {
     
-    public static List<ColumnAndType> createColumns(Map<String, Object> map) {
-        List<ColumnAndType> columns = Lists.newArrayListWithExpectedSize(map.size());
+    public static List<ColumnMetadata> createColumns(Map<String, Object> map) {
+        List<ColumnMetadata> columns = Lists.newArrayListWithExpectedSize(map.size());
         for (Entry<String, Object> entry : map.entrySet()) {
-            ColumnAndType column = Columns.createColumn(entry);
+            ColumnMetadata column = Columns.createColumn(entry);
             columns.add(column);
         }
         return columns;
     }
 
     @SuppressWarnings("unchecked")
-	static ColumnAndType createColumn(Entry<String, Object> entry) {
+	static ColumnMetadata createColumn(Entry<String, Object> entry) {
         final Map<String,Object> map;
         if (entry.getValue() instanceof ColumnType) {
-            map = ImmutableMap.of("type", entry.getValue());
+            map = Maps.newHashMap(ImmutableMap.of("type", entry.getValue()));
         } else if (entry.getValue() instanceof Map) {
             map = (Map<String, Object>) entry.getValue();
         } else {
@@ -34,89 +37,46 @@ class Columns {
         return build(entry.getKey(), map);
     }
     
-    interface ColumnAndType extends Column {
-        ColumnType type();
+    static class ColumnMetadata {
+    	private final Column column;
+    	private final ColumnType columnType;
+    	
+		public ColumnMetadata(Column column, ColumnType columnType) {
+			super();
+			this.column = column;
+			this.columnType = columnType;
+		}
+
+		public Column getColumn() {
+			return column;
+		}
+
+		public ColumnType getColumnType() {
+			return columnType;
+		}
     }
     
-    private static boolean asBoolean(Object value, boolean defaultValue) {
-        return value instanceof Boolean ? (Boolean)value : defaultValue;
-    }
-    
-    private static String asString(Object value, String defaultValue) {
-        return value instanceof String ? (String)value : defaultValue;
-    }
-    
-    private static int asInteger(Object value, int defaultValue) {
-        return value instanceof Number ? ((Number)value).intValue() : defaultValue;
-    }
-    
-    public static ColumnAndType build(
-            final String name, 
+    public static ColumnMetadata build(
+            final String name,
             final Map<String,Object> map) {
         
-        final ColumnType type = (ColumnType) map.get("type");
+        final ColumnType type = (ColumnType) map.remove("type");
         
-        return new ColumnAndType() {
-
-            @Override
-            public Class<? extends Annotation> annotationType() {
-                return null;
-            }
-
-            @Override
-            public String name() {
-                return name;
-            }
-
-            @Override
-            public boolean unique() {
-                return asBoolean(map.get("unique"), false);
-            }
-
-            @Override
-            public boolean nullable() {
-                return asBoolean(map.get("nullable"), true);
-            }
-
-            @Override
-            public boolean insertable() {
-                return asBoolean(map.get("insertable"), true);
-            }
-
-            @Override
-            public boolean updatable() {
-                return asBoolean(map.get("updatable"), true);
-            }
-
-            @Override
-            public String columnDefinition() {
-                return asString(map.get("columnDefinition"), "");
-            }
-
-            @Override
-            public String table() {
-                return "";
-            }
-
-            @Override
-            public int length() {
-                return asInteger(map.get("length"), 255);
-            }
-
-            @Override
-            public int precision() {
-                return asInteger(map.get("precision"), 0);
-            }
-
-            @Override
-            public int scale() {
-                return asInteger(map.get("scale"), 0);
-            }
-
-            @Override
-            public ColumnType type() {
-                return type;
-            }
-        };
+        Set<String> validKeys = Sets.newHashSet();
+        for (Method m : Column.class.getDeclaredMethods()) {
+        	validKeys.add(m.getName());
+        }
+        
+        Set<String> keys = Sets.newHashSet(map.keySet());
+        keys.removeAll(validKeys);
+        if (!keys.isEmpty()) {
+        	throw new RuntimeException("Column `" + name + "` references unsupported keys: " + keys);
+        }
+        
+        map.put("name", name);
+        final Column col = Annotations.generateAnnotationProxy(Column.class, map);
+        
+        return new ColumnMetadata(col, type);
     }
+
 }

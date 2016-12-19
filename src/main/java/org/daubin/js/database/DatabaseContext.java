@@ -4,7 +4,9 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
-import org.daubin.js.database.Columns.ColumnAndType;
+import javax.persistence.Column;
+
+import org.daubin.js.database.Columns.ColumnMetadata;
 
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.DaoManager;
@@ -20,14 +22,22 @@ public class DatabaseContext {
         this.classGenerator = new ClassGenerator();
     }
 
-    public Object define(String tableName, Map<String,Object> map) throws SQLException {
+    /**
+     * Creates a new DAO for the given table.  The map should be a map of column names to either
+     * a {@link ColumnType} or another map of settings that can populate a {@link Column} instance.
+     * 
+     * Under the covers, this method generates a class to represent the table model with javax.persistence
+     * annotations on the class and its fields.  The generated class is then fed into a Java ORM implementation.
+     */
+    public JsEntityManager define(String tableName, Map<String,Object> map) throws SQLException {
         
-        List<ColumnAndType> columns = Columns.createColumns(map);
+        List<ColumnMetadata> columns = Columns.createColumns(map);
         
         Class<?> clazz = classGenerator.createClass(tableName, columns);
         
-        Dao<?, ?> dao = DaoManager.createDao(connection, clazz);
-        return new JsDao(dao, clazz);
+        @SuppressWarnings("unchecked")
+		Dao<Model, ?> dao = (Dao<Model, ?>) DaoManager.createDao(connection, clazz);
+        return new JsEntityManager(dao, clazz);
     }
 
     public static String help() {

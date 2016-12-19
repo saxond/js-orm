@@ -8,7 +8,7 @@ import java.util.function.Function;
 import javax.persistence.Column;
 import javax.persistence.Table;
 
-import org.daubin.js.database.Columns.ColumnAndType;
+import org.daubin.js.database.Columns.ColumnMetadata;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -17,6 +17,8 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
+
+import com.google.common.collect.ImmutableMap;
 
 class ClassGenerator {
     private static final int JAVA_VERSION = 52;
@@ -43,27 +45,28 @@ class ClassGenerator {
         classLoader = createClassLoader(DatabaseContext.class.getClassLoader());
     }
 
-    public Class<?> createClass(String tableName, List<ColumnAndType> columns) {
+    public Class<?> createClass(String tableName, List<ColumnMetadata> columns) {
         return classLoader.apply(generateClass(tableName, columns));
     }
 
-    private static byte[] generateClass(String tableName, List<ColumnAndType> columns) {
+    private static byte[] generateClass(String tableName, List<ColumnMetadata> columns) {
     
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
 
         final String className = "org/daubin/generated/" + tableName;
         cw.visit(JAVA_VERSION, Opcodes.ACC_PUBLIC, className, null, 
-                Type.getInternalName(Object.class), new String[0]);
+                Type.getInternalName(Object.class), 
+                new String[] { Type.getInternalName( Model.class ) });
         
         cw.visitSource(className, null);
         
         // Add the persistence Table annotation
         AnnotationVisitor tableAnnotation = cw.visitAnnotation(Type.getDescriptor(Table.class), true);
-		tableAnnotation.visit("name", tableName);
-        tableAnnotation.visitEnd();
+        populateAnnotation(tableAnnotation, Table.class, 
+        		Annotations.generateAnnotationProxy(Table.class, ImmutableMap.of("name", tableName)));
         
         // generate fields for all columns
-        for (ColumnAndType column : columns) {
+        for (ColumnMetadata column : columns) {
             generateField(cw, column);
         }
         
@@ -76,7 +79,7 @@ class ClassGenerator {
         return cw.toByteArray();
     }
 
-    private static void generateToString(ClassWriter cw, String tableName, String className, List<ColumnAndType> columns) {
+    private static void generateToString(ClassWriter cw, String tableName, String className, List<ColumnMetadata> columns) {
         GeneratorAdapter mv =
                 new GeneratorAdapter(Opcodes.ACC_PUBLIC, TOSTRING_METHOD,
                 cw.visitMethod(Opcodes.ACC_PUBLIC, TOSTRING_METHOD.getName() , TOSTRING_METHOD.getDescriptor(), null, null));
@@ -96,7 +99,8 @@ class ClassGenerator {
         appendChar(mv, local, '{');
         
         boolean first = true;
-        for (ColumnAndType col : columns) {
+        for (ColumnMetadata colAndType : columns) {
+        	Column col = colAndType.getColumn();
             if (first) {
                 first = false;
             } else {
@@ -107,8 +111,12 @@ class ClassGenerator {
             
             mv.loadLocal(local);
             mv.loadThis();
-            mv.visitFieldInsn(Opcodes.GETFIELD, className, col.name(), Type.getDescriptor(col.type().clazz));
-            mv.invokeVirtual(STRINGBUILDER_TYPE, getAppendMethod(col.type().clazz));
+            Class<?> columnClass = colAndType.getColumnType().getColumnClass(col);
+			mv.visitFieldInsn(Opcodes.GETFIELD, className, col.name(), Type.getDescriptor(columnClass));
+            if (col.nullable()) {
+            	mv.invokeVirtual(Type.getType(Object.class), TOSTRING_METHOD);
+            }
+            mv.invokeVirtual(STRINGBUILDER_TYPE, getAppendMethod(col.nullable() ? String.class : columnClass));
         }
         
         appendChar(mv, local, '}');
@@ -134,9 +142,11 @@ class ClassGenerator {
         mv.invokeVirtual(STRINGBUILDER_TYPE, APPEND_CHAR_METHOD);
     }
 
-    private static void generateField(ClassWriter cw, ColumnAndType column) {
-        FieldVisitor field = cw.visitField(Opcodes.ACC_PUBLIC, column.name(), Type.getDescriptor(column.type().clazz), null, null);
-        annotateField(field, column);
+    private static void generateField(ClassWriter cw, ColumnMetadata column) {
+        FieldVisitor field = cw.visitField(Opcodes.ACC_PUBLIC, column.getColumn().name(), 
+        		Type.getDescriptor(column.getColumnType().getColumnClass(column.getColumn())), null, null);
+        AnnotationVisitor fieldAnn = field.visitAnnotation(Type.getDescriptor(javax.persistence.Column.class), true);
+        populateAnnotation(fieldAnn, Column.class, column.getColumn());
         
         field.visitEnd();
     }
@@ -151,22 +161,23 @@ class ClassGenerator {
         mv.visitEnd();
     }
 
-    static void annotateField(FieldVisitor field, ColumnAndType column) {
-        AnnotationVisitor fieldAnn = field.visitAnnotation(Type.getDescriptor(javax.persistence.Column.class), true);
+    static <T> void populateAnnotation(AnnotationVisitor av, Class<T> annotationType, T instance) {
 
-        Method[] annotationValues = Column.class.getDeclaredMethods();
+        Method[] annotationValues = annotationType.getDeclaredMethods();
         for (Method value : annotationValues) {
-            try {
-                Object val = value.invoke(column);
-                if (null != val) {
-                    fieldAnn.visit(value.getName(), val);
-                }
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-                e.printStackTrace();
-            }
+        	if (!value.getReturnType().isArray()) {
+	            try {
+	                Object val = value.invoke(instance);
+	                if (null != val) {
+	                    av.visit(value.getName(), val);
+	                }
+	            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+	                e.printStackTrace();
+	            }
+        	}
         }
     
-        fieldAnn.visitEnd();
+        av.visitEnd();
     }
 
     private static Function<byte[], Class<?>> createClassLoader(ClassLoader loader) throws NoSuchMethodException, SecurityException {

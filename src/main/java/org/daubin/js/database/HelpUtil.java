@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 
-public class HelpUtil {
+class HelpUtil {
     private HelpUtil() { }
 
     public static StringBuilder appendMethods(StringBuilder builder, Method[] methods) {

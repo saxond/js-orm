@@ -6,5 +6,5 @@ var conn = new ConnectionSource("jdbc:mysql://localhost/test", "root", null)
 var context = new DBContext(conn)
 var Account = context.define(
                   'accounts',
-                  {id: {type: Type.Integer, unique: true},
-                  name: Type.String })
+                  {id: {type: Type.INTEGER, unique: true},
+                  name: Type.STRING })
