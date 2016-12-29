@@ -6,9 +6,7 @@ repositories {
 }
 
 dependencies {
-    compile "com.j256.ormlite:ormlite-core:5.0"
-    compile "com.j256.ormlite:ormlite-jdbc:5.0"
-    compile "javax.persistence:persistence-api:1.0.2"
+    compile "org.apache.openjpa:openjpa:2.4.1"
     compile "org.ow2.asm:asm:5.1"
     compile "org.ow2.asm:asm-util:5.1"
     compile "org.ow2.asm:asm-commons:5.1"
@@ -16,8 +14,7 @@ dependencies {
     compile "com.fasterxml.jackson.core:jackson-databind:${project['jackson.version']}"
     
     compile "com.google.guava:guava:${project['guava.version']}"
-    
-//    testCompile "mysql:mysql-connector-java:6.0.5"
+
     testCompile "com.h2database:h2:1.4.193"  
     testCompile "org.mockito:mockito-all:1.10.19"
     testCompile "junit:junit:${project['junit.version']}"

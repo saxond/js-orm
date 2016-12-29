@@ -1,13 +1,18 @@
 package org.daubin.js.database;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URL;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Map;
 
 import javax.persistence.Column;
+import javax.persistence.Entity;
 import javax.persistence.Table;
 
+import org.apache.openjpa.util.ClassResolver;
 import org.daubin.js.database.Columns.ColumnMetadata;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
@@ -19,6 +24,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 class ClassGenerator {
     private static final int JAVA_VERSION = 52;
@@ -39,14 +45,29 @@ class ClassGenerator {
     /**
      * Helper for loading new class bytes into a classloader.
      */
-    private final Function<byte[], Class<?>> classLoader;
+	private final CustomClassLoader classLoader;
     
     public ClassGenerator() throws NoSuchMethodException, SecurityException {
-        classLoader = createClassLoader(DatabaseContext.class.getClassLoader());
+    	this.classLoader = new CustomClassLoader(EntityManagerFactoryBuilder.class.getClassLoader());
     }
 
-    public Class<?> createClass(String tableName, List<ColumnMetadata> columns) {
-        return classLoader.apply(generateClass(tableName, columns));
+	public ClassLoader getClassLoader() {
+		return classLoader;
+	}
+	
+	public ClassResolver getClassResolver() {
+		return new ClassResolver() {
+			
+			@Override
+			public ClassLoader getClassLoader(Class<?> contextClass,
+					ClassLoader envLoader) {
+				return classLoader;
+			}
+		};
+	}
+
+	public Class<?> createClass(String tableName, List<ColumnMetadata> columns) {
+        return classLoader.load(generateClass(tableName, columns));
     }
 
     private static byte[] generateClass(String tableName, List<ColumnMetadata> columns) {
@@ -65,6 +86,9 @@ class ClassGenerator {
         populateAnnotation(tableAnnotation, Table.class, 
         		Annotations.generateAnnotationProxy(Table.class, ImmutableMap.of("name", tableName)));
         
+        AnnotationVisitor entityAnnotation = cw.visitAnnotation(Type.getDescriptor(Entity.class), true);
+        entityAnnotation.visitEnd();
+        
         // generate fields for all columns
         for (ColumnMetadata column : columns) {
             generateField(cw, column);
@@ -73,17 +97,43 @@ class ClassGenerator {
         // generate the default constructor
         generateConstructor(cw);
         
+        generateGetTableName(cw, tableName);
         generateToString(cw, tableName, className, columns);
     
         cw.visitEnd();
         return cw.toByteArray();
     }
 
-    private static void generateToString(ClassWriter cw, String tableName, String className, List<ColumnMetadata> columns) {
+    private static void generateGetTableName(ClassWriter cw, String tableName) {
+    	GeneratorAdapter mv =
+                new GeneratorAdapter(Opcodes.ACC_PUBLIC, TOSTRING_METHOD,
+                cw.visitMethod(Opcodes.ACC_PUBLIC, "getTableName", "()Ljava/lang/String;", null, null));
+        mv.visitCode();
+
+        mv.push(tableName);
+        
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(1,1);
+        
+        mv.visitEnd();
+	}
+
+	private static void generateToString(ClassWriter cw, String tableName, String className, List<ColumnMetadata> columns) {
         GeneratorAdapter mv =
                 new GeneratorAdapter(Opcodes.ACC_PUBLIC, TOSTRING_METHOD,
-                cw.visitMethod(Opcodes.ACC_PUBLIC, TOSTRING_METHOD.getName() , TOSTRING_METHOD.getDescriptor(), null, null));
+                cw.visitMethod(Opcodes.ACC_PUBLIC, TOSTRING_METHOD.getName(), TOSTRING_METHOD.getDescriptor(), null, null));
         mv.visitCode();
+
+        mv.loadThis();
+        mv.invokeInterface(Type.getType(Model.class), new org.objectweb.asm.commons.Method("dump", Type.getType(String.class), new Type[0]));
+        
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(1,1);
+        
+        mv.visitEnd();
+    }
+        
+        /*
         
         int local = mv.newLocal(STRINGBUILDER_TYPE);
         mv.push(STRINGBUILDER_TYPE);
@@ -114,7 +164,16 @@ class ClassGenerator {
             Class<?> columnClass = colAndType.getColumnType().getColumnClass(col);
 			mv.visitFieldInsn(Opcodes.GETFIELD, className, col.name(), Type.getDescriptor(columnClass));
             if (col.nullable()) {
+//            	mv.dup();
+            	final Label skip = new Label();
+            	final Label end = new Label();
+            	mv.ifNull(skip);
             	mv.invokeVirtual(Type.getType(Object.class), TOSTRING_METHOD);
+            	mv.goTo(end);
+            	mv.visitLabel(skip);
+//            	mv.pop();
+            	mv.push("<null>");
+            	mv.visitLabel(end);
             }
             mv.invokeVirtual(STRINGBUILDER_TYPE, getAppendMethod(col.nullable() ? String.class : columnClass));
         }
@@ -141,12 +200,18 @@ class ClassGenerator {
         mv.push(c);
         mv.invokeVirtual(STRINGBUILDER_TYPE, APPEND_CHAR_METHOD);
     }
+    */
 
     private static void generateField(ClassWriter cw, ColumnMetadata column) {
         FieldVisitor field = cw.visitField(Opcodes.ACC_PUBLIC, column.getColumn().name(), 
         		Type.getDescriptor(column.getColumnType().getColumnClass(column.getColumn())), null, null);
         AnnotationVisitor fieldAnn = field.visitAnnotation(Type.getDescriptor(javax.persistence.Column.class), true);
         populateAnnotation(fieldAnn, Column.class, column.getColumn());
+        
+        if (column.isId()) {
+        	AnnotationVisitor idAnn = field.visitAnnotation(Type.getDescriptor(javax.persistence.Id.class), true);
+        	idAnn.visitEnd();
+        }
         
         field.visitEnd();
     }
@@ -179,32 +244,35 @@ class ClassGenerator {
     
         av.visitEnd();
     }
+    
+    private static class CustomClassLoader extends ClassLoader {
+    	final Map<String, byte[]> classBytes = Maps.newHashMap();
 
-    private static Function<byte[], Class<?>> createClassLoader(ClassLoader loader) throws NoSuchMethodException, SecurityException {
-        final Class<?> cls = ClassLoader.class;
-        final java.lang.reflect.Method method = cls.getDeclaredMethod("defineClass", new Class[] { String.class, byte[].class, int.class, int.class });
-    
-        return new Function<byte[], Class<?>>() {
-    
-			@Override
-			public Class<?> apply(byte[] bytes) {
-				ClassReader reader = new ClassReader(bytes);
-				method.setAccessible(true);
-				try {
-					String className = reader.getClassName().replace('/', '.');
-					Object[] args = new Object[] { className, bytes,
-							new Integer(0), new Integer(bytes.length) };
-					return (Class<?>) method.invoke(loader, args);
-				} catch (IllegalAccessException | IllegalArgumentException
-						| InvocationTargetException e) {
-					e.printStackTrace();
-					return null;
-				} finally {
-					method.setAccessible(false);
-				}
+		public CustomClassLoader(ClassLoader parent) {
+			super(parent);
+		}
+    	
+		@Override
+		public URL getResource(String name) {
+			return super.getResource(name);
+		}
+
+		@Override
+		public InputStream getResourceAsStream(String name) {
+			byte[] bytes = classBytes.get(name);
+			if (null != bytes) {
+				return new ByteArrayInputStream(bytes);
 			}
-            
-        };
-    }
+			return super.getResourceAsStream(name);
+		}
+		
+		public Class<?> load(byte[] bytes) {
+			ClassReader reader = new ClassReader(bytes);
+			String className = reader.getClassName().replace('/', '.');
+			
+			classBytes.put(reader.getClassName() + ".class", bytes);
 
+			return this.defineClass(className, bytes, 0, bytes.length);
+		}
+    }
 }

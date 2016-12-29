@@ -9,7 +9,7 @@ The goal is to provide simple database support for Nashorn scripts with
 a performant java implementation.  This project is currently just a playground for ideas.
 
 The javascript syntax is very loosely based on [sequelize](http://docs.sequelizejs.com/en/v3/)
-and the implementation is currently built on top of [ORMLite](http://ormlite.com). 
+and the implementation is currently built on top of Open JPA. 
 
 Why do this?
 =====
@@ -33,8 +33,9 @@ Run
     
 Example
 =====
-    jjs> org.daubin.js.database.Initializer.init()
-    jjs> var conn = new ConnectionSource("jdbc:mysql://localhost/test", "root", null)
-    jjs> var context = new DBContext(conn)
-    jjs> var Account = context.define('accounts',{id: {type: Type.Integer, unique: true},name: Type.String })
-    jjs> Account.all()
+    jjs> var builder = EMBuilder.newBuilder().createSchema().databaseSettings("org.h2.Driver","jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", "", "")
+
+    jjs> var Account = builder.registerEntity("accounts", {"id" : Type.INTEGER, "name": Type.STRING});
+    jjs> var entityManagerFactory = builder.build("db");
+
+    jjs> var em = entityManagerFactory.createEntityManager();

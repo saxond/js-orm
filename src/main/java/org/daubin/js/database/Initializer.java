@@ -12,21 +12,18 @@ import jdk.nashorn.internal.runtime.ScriptFunction;
 import jdk.nashorn.internal.runtime.Source;
 
 import com.google.common.collect.ImmutableMap;
-import com.j256.ormlite.jdbc.JdbcConnectionSource;
 
 public class Initializer {
 
     private final static Map<String, Class<?>> GLOBALS = ImmutableMap.<String, Class<?>>builder().
             put("Type", ColumnType.class).
-            put("ConnectionSource", JdbcConnectionSource.class).
-            put("DBContext", DatabaseContext.class).
+            put("EMBuilder", EntityManagerFactoryBuilder.class).
             put("Collectors", Collectors.class).
             build();
     
     private final static Map<Class<?>, String> HELP = ImmutableMap.<Class<?>, String>builder().
             put(ColumnType.class, "").
-            put(JdbcConnectionSource.class, "").
-            put(DatabaseContext.class, DatabaseContext.help()).
+            put(EntityManagerFactoryBuilder.class, EntityManagerFactoryBuilder.help()).
             put(Collectors.class, "").
             build();
     
@@ -49,16 +46,10 @@ public class Initializer {
             Class<?> clazz = ((StaticClass)obj).getRepresentedClass();
             String help = HELP.get(clazz);
             if (null != help) {
-                print(help);
-                return "";
+                return help;
             }
         }
-        print("No help available for " + obj);
-        return "";
-    }
-    
-    private static void print(String message) {
-        Context.getContext().getOut().println(message);
+        return "No help available for " + obj;
     }
 
     static  void defineScript(String name, String script) throws Throwable {

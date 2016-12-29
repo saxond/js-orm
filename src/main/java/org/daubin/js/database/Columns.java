@@ -40,11 +40,12 @@ class Columns {
     static class ColumnMetadata {
     	private final Column column;
     	private final ColumnType columnType;
+		private final boolean id;
     	
-		public ColumnMetadata(Column column, ColumnType columnType) {
-			super();
+		public ColumnMetadata(Column column, ColumnType columnType, boolean id) {
 			this.column = column;
 			this.columnType = columnType;
+			this.id = id;
 		}
 
 		public Column getColumn() {
@@ -54,6 +55,10 @@ class Columns {
 		public ColumnType getColumnType() {
 			return columnType;
 		}
+		
+		public boolean isId() {
+			return id;
+		}
     }
     
     public static ColumnMetadata build(
@@ -61,6 +66,8 @@ class Columns {
             final Map<String,Object> map) {
         
         final ColumnType type = (ColumnType) map.remove("type");
+        
+        Object idValue = map.remove("id");
         
         Set<String> validKeys = Sets.newHashSet();
         for (Method m : Column.class.getDeclaredMethods()) {
@@ -76,7 +83,8 @@ class Columns {
         map.put("name", name);
         final Column col = Annotations.generateAnnotationProxy(Column.class, map);
         
-        return new ColumnMetadata(col, type);
+        boolean id = idValue != null && (Boolean)idValue;
+        return new ColumnMetadata(col, type, id);
     }
 
 }

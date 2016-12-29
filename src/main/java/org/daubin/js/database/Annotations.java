@@ -16,6 +16,9 @@ public class Annotations {
 	public static <T> T generateAnnotationProxy(Class<T> annotationClass,
 			Map<String, Object> map) {
 		InvocationHandler handler = (proxy, method, args) -> {
+			if ("toString".equals(method.getName())) {
+				return map.toString();
+			}
 			Object value = map.get(method.getName());
 			if (null == value) {
 				Method annotationMethod = annotationClass.getMethod(method.getName(), method.getParameterTypes());
