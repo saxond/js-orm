@@ -63,7 +63,9 @@ public class EntityManagerFactoryBuilderTest {
         try (Reader reader = new InputStreamReader(
         		EntityManagerFactoryBuilderTest.class.getResourceAsStream(
         				"/" + EntityManagerFactoryBuilderTest.class.getPackage().getName().replace('.', '/') + "/test.js"))) {
-        	Assert.assertEquals("dude", engine.eval(reader));
+        	Object returnValue = engine.eval(reader);
+			Assert.assertTrue(returnValue instanceof Number);
+			Assert.assertTrue(((Number)returnValue).intValue() > 0);
         }
         
         System.err.println(((Invocable)engine).invokeFunction("help"));
@@ -77,7 +79,7 @@ public class EntityManagerFactoryBuilderTest {
     	@Id
     	@GeneratedValue
 		@Column(unique=true)
-    	int id;
+    	Integer id;
     	
     	@Column
     	String name;

@@ -6,10 +6,11 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import javax.persistence.Column;
-import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 
 import org.daubin.js.database.Columns.ColumnMetadata;
+import org.daubin.js.database.jpa.EntityManagerExtension;
+import org.daubin.js.database.jpa.EntityManagerFactoryExtension;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
@@ -73,15 +74,15 @@ public class EntityManagerFactoryBuilder {
 		return this;
 	}
 	
-	public Supplier<EntityManager> buildThreadLocal(String persistenceUnitName) {
-		final EntityManagerFactory factory = build(persistenceUnitName);
+	public Supplier<EntityManagerExtension> buildThreadLocal(String persistenceUnitName) throws NoSuchMethodException, SecurityException {
+		final EntityManagerFactoryExtension factory = build(persistenceUnitName);
 		
-		final ThreadLocal<EntityManager> threadLocal = ThreadLocal.withInitial( 
+		final ThreadLocal<EntityManagerExtension> threadLocal = ThreadLocal.withInitial( 
 				factory::createEntityManager);
 		return threadLocal::get;
 	}
     
-    public EntityManagerFactory build(String persistenceUnitName) {
+    public EntityManagerFactoryExtension build(String persistenceUnitName) throws NoSuchMethodException, SecurityException {
     	
     	Map<String, Object> props = Maps.newHashMap(properties);
     	props.put("openjpa.MetaDataFactory", "jpa(Types=" +
@@ -90,8 +91,9 @@ public class EntityManagerFactoryBuilder {
     	
     	props.put("openjpa.ClassResolver", classGenerator.getClassResolver());
     	
-    	return javax.persistence.Persistence.createEntityManagerFactory(
+    	EntityManagerFactory entityManagerFactory = javax.persistence.Persistence.createEntityManagerFactory(
     		    persistenceUnitName, props);
+    	return new EntityManagerFactoryExtension(entityManagerFactory);
     }
 
     public static String help() {

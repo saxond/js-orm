@@ -6,7 +6,7 @@ var builder = EMBuilder.newBuilder().
     				 "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", "", "")
 
 var Account =  
-    builder.registerEntity("accounts", {"id" : Type.INTEGER, "name": Type.STRING});
+    builder.registerEntity("accounts", {"id" : {type:Type.INTEGER, id: true, generatedValue: true}, "name": Type.STRING});
 var entityManagerFactory = builder.build("db");
 
 var em = entityManagerFactory.createEntityManager();
@@ -14,7 +14,10 @@ var em = entityManagerFactory.createEntityManager();
 var account = Account.newInstance();
 account.name = "test";
 
-em.persist(account)
+em.doWithTransaction(
+  function(tx) {
+    em.persist(account)
+  })
 
 print(account)
 

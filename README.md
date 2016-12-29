@@ -35,7 +35,7 @@ Example
 =====
     jjs> var builder = EMBuilder.newBuilder().createSchema().databaseSettings("org.h2.Driver","jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", "", "")
 
-    jjs> var Account = builder.registerEntity("accounts", {"id" : Type.INTEGER, "name": Type.STRING});
+    jjs> var Account = builder.registerEntity("accounts", {"id" : {type: Type.INTEGER, id: true, generatedValue: true}, "name": Type.STRING});
     jjs> var entityManagerFactory = builder.build("db");
 
     jjs> var em = entityManagerFactory.createEntityManager();

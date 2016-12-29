@@ -41,11 +41,13 @@ class Columns {
     	private final Column column;
     	private final ColumnType columnType;
 		private final boolean id;
+		private final boolean generatedValue;
     	
-		public ColumnMetadata(Column column, ColumnType columnType, boolean id) {
+		public ColumnMetadata(Column column, ColumnType columnType, boolean id, boolean generatedValue) {
 			this.column = column;
 			this.columnType = columnType;
 			this.id = id;
+			this.generatedValue = generatedValue;
 		}
 
 		public Column getColumn() {
@@ -59,6 +61,10 @@ class Columns {
 		public boolean isId() {
 			return id;
 		}
+
+		public boolean isGeneratedValue() {
+			return generatedValue;
+		}
     }
     
     public static ColumnMetadata build(
@@ -68,6 +74,7 @@ class Columns {
         final ColumnType type = (ColumnType) map.remove("type");
         
         Object idValue = map.remove("id");
+        Object generatedValue = map.remove("generatedValue");
         
         Set<String> validKeys = Sets.newHashSet();
         for (Method m : Column.class.getDeclaredMethods()) {
@@ -83,8 +90,9 @@ class Columns {
         map.put("name", name);
         final Column col = Annotations.generateAnnotationProxy(Column.class, map);
         
-        boolean id = idValue != null && (Boolean)idValue;
-        return new ColumnMetadata(col, type, id);
+        return new ColumnMetadata(col, type, 
+        		(idValue != null && (Boolean)idValue), 
+        		(generatedValue != null && (Boolean)generatedValue));
     }
 
 }

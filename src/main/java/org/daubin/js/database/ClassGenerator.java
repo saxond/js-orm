@@ -213,6 +213,11 @@ class ClassGenerator {
         	idAnn.visitEnd();
         }
         
+        if (column.isGeneratedValue()) {
+        	AnnotationVisitor ann = field.visitAnnotation(Type.getDescriptor(javax.persistence.GeneratedValue.class), true);
+        	ann.visitEnd();
+        }
+        
         field.visitEnd();
     }
 
