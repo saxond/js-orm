@@ -1,21 +1,11 @@
 package org.daubin.classutils;
 
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 public class ProxyGeneratorTest {
-
-	@Test
-	public void multipleInterface() throws Exception {
-		TestFactory factory = ProxyGenerator.createMultipleInterfaceFactory(TestFactory.class);
-		
-		Object instance = factory.newInstance(l -> l.toString(), () -> 666);
-		Assert.assertEquals("5", ((Function<Long, String>)instance).apply(5l));
-		Assert.assertEquals(Integer.valueOf(666), ((Supplier<Integer>)instance).get());
-	}
 	
 	@Test
 	public void extension() throws Exception {
@@ -32,10 +22,5 @@ public class ProxyGeneratorTest {
 		default String test() {
 			return "testing";
 		}
-	}
-	
-	@FunctionalInterface
-	public interface TestFactory {
-		Object newInstance(Function<Long, String> f, Supplier<Integer> t);
 	}
 }

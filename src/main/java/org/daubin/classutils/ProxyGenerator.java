@@ -8,14 +8,10 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 public class ProxyGenerator {
 	
@@ -40,7 +36,11 @@ public class ProxyGenerator {
 					return method.invoke(original, params);
 				} else {
 					MethodHandle methodHandle = methodMap.get(method);
-					return null == methodHandle ? null : methodHandle.bindTo(object).invokeWithArguments(params);
+					if (null == methodHandle) {
+						throw new RuntimeException("No handler for method " + method);
+					} else {
+						return methodHandle.bindTo(object).invokeWithArguments(params);
+					}
 				}
 			};
 			return proxyFactory.apply(handler);
@@ -89,55 +89,5 @@ public class ProxyGenerator {
 				methodHandleConstuctor.setAccessible(accessible);
 			}
 		};
-	}
-
-	@SuppressWarnings("unchecked")
-	public static <T> T createMultipleInterfaceFactory(Class<T> factoryClass) throws NoSuchMethodException, SecurityException {
-		if (!factoryClass.isInterface() || null == factoryClass.getDeclaredAnnotation(FunctionalInterface.class)) {
-			throw new IllegalArgumentException(factoryClass.getName() + " must be functional interface");
-		}
-		
-		final Method newInstanceMethod = getNewInstanceMethod(factoryClass);
-		if (newInstanceMethod.getParameterTypes().length == 0) {
-			throw new IllegalArgumentException(factoryClass.getName() + ".newInstance must take at least one argument");
-		}
-		List<Class<?>> interfaces = Lists.newArrayListWithExpectedSize(newInstanceMethod.getParameterCount());
-		for (Class<?> paramClass : newInstanceMethod.getParameterTypes()) {
-			if (!paramClass.isInterface()) {
-				throw new IllegalArgumentException(factoryClass.getName() + ".newInstance parameter type " + paramClass + " is not an interface");	
-			}
-			interfaces.add(paramClass);
-		}
-
-		final Class<?>[] interfaceClasses = interfaces.toArray(new Class[0]);
-		final Function<InvocationHandler, T> proxyFactory = createProxyFactory(factoryClass, interfaceClasses);
-		
-		InvocationHandler factoryHandler = (factory, newMethod, interfaceInstances) -> {
-			final Map<Method, Object> methodHandlers = Maps.newHashMap();
-			for (int i = 0; i < interfaceClasses.length; i++) {
-				for (Method m : interfaceClasses[i].getDeclaredMethods()) {
-					methodHandlers.put(m, interfaceInstances[i]);
-				}
-			}
-			InvocationHandler handler = (obj, method, parameters) -> {
-				Object instance = methodHandlers.get(method);
-				if (null != instance) {
-					return method.invoke(instance, parameters);
-				}
-				return null;
-			};
-			
-			return proxyFactory.apply(handler);
-		};
-		return (T) Proxy.newProxyInstance(factoryClass.getClassLoader(), new Class<?>[] {factoryClass}, factoryHandler);
-	}
-	
-	private static Method getNewInstanceMethod(Class<?> clazz) {
-		for (Method method : clazz.getMethods()) {
-			if ("newInstance".equals(method.getName())) {
-				return method;
-			}
-		}
-		throw new IllegalArgumentException(clazz.getName() + " must define a newInstance method");
 	}
 }
